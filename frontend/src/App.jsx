@@ -1,6 +1,16 @@
 import { useState, useEffect, useRef } from 'react'
 import './App.css'
 
+// Progress sections based on BRD template
+const progressSections = [
+  { id: 'project', title: 'Project Overview', items: ['Name', 'Sponsor', 'Owner', 'Team', 'Timeline', 'Objective'] },
+  { id: 'business', title: 'Business Background', items: ['Context', 'Pain Points', 'Business Value'] },
+  { id: 'stakeholder', title: 'Stakeholder Analysis', items: ['Stakeholders', 'Interests', 'Expectations'] },
+  { id: 'requirements', title: 'Core Requirements', items: ['Data Sources', 'Visualization', 'Insights', 'Non-functional'] },
+  { id: 'constraints', title: 'Constraints & Risks', items: ['Resources', 'Timeline', 'Risks'] },
+  { id: 'deliverables', title: 'Deliverables', items: ['List of deliverables'] }
+]
+
 function App() {
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
@@ -30,8 +40,11 @@ function App() {
     setInput('')
     setLoading(true)
 
-    // Add user message
-    setMessages(prev => [...prev, { role: 'user', content: userMessage }])
+    // Create updated messages array with user message
+    const updatedMessages = [...messages, { role: 'user', content: userMessage }]
+
+    // Add user message to state
+    setMessages(updatedMessages)
 
     try {
       const response = await fetch('/chat', {
@@ -40,9 +53,13 @@ function App() {
         body: JSON.stringify({
           message: userMessage,
           model: model,
-          history: messages
+          history: updatedMessages
         })
       })
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
 
       const data = await response.json()
       setMessages(prev => [...prev, { role: 'ai', content: data.response }])
@@ -84,22 +101,16 @@ ${m.content}
         body: JSON.stringify({ brd_content: summary })
       })
 
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
       const data = await response.json()
       alert(`BRD exported to: ${data.file_path}`)
     } catch (err) {
       alert('Failed to export BRD')
     }
   }
-
-  // Progress sections based on BRD template
-  const progressSections = [
-    { id: 'project', title: 'Project Overview', items: ['Name', 'Sponsor', 'Owner', 'Team', 'Timeline', 'Objective'] },
-    { id: 'business', title: 'Business Background', items: ['Context', 'Pain Points', 'Business Value'] },
-    { id: 'stakeholder', title: 'Stakeholder Analysis', items: ['Stakeholders', 'Interests', 'Expectations'] },
-    { id: 'requirements', title: 'Core Requirements', items: ['Data Sources', 'Visualization', 'Insights', 'Non-functional'] },
-    { id: 'constraints', title: 'Constraints & Risks', items: ['Resources', 'Timeline', 'Risks'] },
-    { id: 'deliverables', title: 'Deliverables', items: ['List of deliverables'] }
-  ]
 
   return (
     <div className="app">
@@ -149,7 +160,7 @@ ${m.content}
               placeholder="Type your message..."
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              onKeyPress={handleKeyPress}
+              onKeyDown={handleKeyPress}
               rows={1}
             />
             <button
