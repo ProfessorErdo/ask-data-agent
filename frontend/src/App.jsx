@@ -89,23 +89,26 @@ function App() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  // Analyze AI response for field detection
+  // Analyze user input for field detection
   const analyzeContent = useCallback((content) => {
     const lowerContent = content.toLowerCase()
-    const newCollected = { ...collectedFields }
 
-    Object.keys(fieldKeywords).forEach(section => {
-      Object.keys(fieldKeywords[section]).forEach(field => {
-        const keywords = fieldKeywords[section][field]
-        const isDetected = keywords.some(keyword => lowerContent.includes(keyword))
-        if (isDetected) {
-          newCollected[section] = new Set([...newCollected[section], field])
-        }
+    setCollectedFields(prev => {
+      const newCollected = { ...prev }
+
+      Object.keys(fieldKeywords).forEach(section => {
+        Object.keys(fieldKeywords[section]).forEach(field => {
+          const keywords = fieldKeywords[section][field]
+          const isDetected = keywords.some(keyword => lowerContent.includes(keyword))
+          if (isDetected) {
+            newCollected[section] = new Set([...newCollected[section], field])
+          }
+        })
       })
-    })
 
-    setCollectedFields(newCollected)
-  }, [collectedFields])
+      return newCollected
+    })
+  }, [])
 
   const handleSend = async () => {
     if (!input.trim() || loading) return
@@ -140,8 +143,8 @@ function App() {
 
       setMessages(prev => [...prev, aiMessage])
 
-      // Analyze AI response for field detection
-      analyzeContent(aiMessage.content)
+      // Analyze user input for field detection
+      analyzeContent(userMessage)
     } catch (err) {
       setMessages(prev => [...prev, {
         role: 'ai',
@@ -233,7 +236,8 @@ ${conversationSummary || 'No conversation yet.'}
       const data = await response.json()
       alert(`BRD exported to: ${data.file_path}`)
     } catch (err) {
-      alert('Failed to export BRD')
+      console.error('Export error:', err)
+      alert(`Failed to export BRD: ${err.message || 'Unknown error. Please check if the backend server is running.'}`)
     }
   }
 
