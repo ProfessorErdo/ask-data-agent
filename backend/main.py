@@ -1,13 +1,31 @@
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 import httpx
+import logging
 import os
 from pathlib import Path
 
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+logger = logging.getLogger(__name__)
+
 app = FastAPI()
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Paths
 BASE_DIR = Path(__file__).parent.parent
@@ -62,8 +80,12 @@ def get_ollama_response(messages: List[Dict[str, str]], model: str) -> str:
             response = client.post(url, json=payload)
             response.raise_for_status()
             return response.json()["message"]["content"]
+    except httpx.HTTPError as e:
+        logger.error(f"HTTP error calling Ollama: {e}")
+        raise HTTPException(status_code=503, detail=f"Failed to connect to Ollama: {str(e)}")
     except Exception as e:
-        return f"Error: {str(e)}"
+        logger.error(f"Error calling Ollama: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 @app.get("/")
 async def root():
@@ -77,8 +99,12 @@ async def root():
 async def get_brd_template():
     """Get the BRD template content"""
     if BRD_TEMPLATE.exists():
-        content = BRD_TEMPLATE.read_text()
-        return {"content": content}
+        try:
+            content = BRD_TEMPLATE.read_text()
+            return {"content": content}
+        except IOError as e:
+            logger.error(f"Error reading BRD template: {e}")
+            raise HTTPException(status_code=500, detail="Failed to read BRD template")
     raise HTTPException(status_code=404, detail="BRD template not found")
 
 @app.post("/chat")
@@ -87,7 +113,11 @@ async def chat(chat_message: ChatMessage):
     # Build messages for Ollama
     template_content = ""
     if BRD_TEMPLATE.exists():
-        template_content = BRD_TEMPLATE.read_text()
+        try:
+            template_content = BRD_TEMPLATE.read_text()
+        except IOError as e:
+            logger.error(f"Error reading BRD template: {e}")
+            template_content = ""
 
     messages = [{"role": "system", "content": SYSTEM_PROMPT.format(template_content=template_content)}]
 
@@ -115,7 +145,11 @@ async def export_brd(request: ExportRequest):
         filename = f"draft_brd_{timestamp}.md"
 
     file_path = OUTPUT_DIR / filename
-    file_path.write_text(request.brd_content)
+    try:
+        file_path.write_text(request.brd_content)
+    except IOError as e:
+        logger.error(f"Error writing BRD file: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to write BRD file: {str(e)}")
 
     return {"file_path": str(file_path), "filename": filename}
 
