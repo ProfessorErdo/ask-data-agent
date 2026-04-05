@@ -63,7 +63,8 @@ Let's get started! What is the name of your project?`
 function App() {
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
-  const [model, setModel] = useState('qwen')
+  const [model, setModel] = useState('qwen3:8b')
+  const [models, setModels] = useState([])
   const [loading, setLoading] = useState(false)
   const [brdTemplate, setBrdTemplate] = useState('')
   const [collectedFields, setCollectedFields] = useState({
@@ -75,6 +76,19 @@ function App() {
     deliverables: new Set()
   })
   const messagesEndRef = useRef(null)
+
+  // Load models from backend (which proxies to Ollama Cloud)
+  useEffect(() => {
+    fetch('/models')
+      .then(res => res.json())
+      .then(data => {
+        if (data.models && data.models.length > 0) {
+          setModels(data.models)
+          setModel(data.models[0].name)
+        }
+      })
+      .catch(err => console.error('Failed to load models:', err))
+  }, [])
 
   // Load BRD template on mount
   useEffect(() => {
@@ -124,6 +138,7 @@ function App() {
     setMessages(updatedMessages)
 
     try {
+      // Send to backend proxy which forwards to Ollama Cloud
       const response = await fetch('/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -146,9 +161,10 @@ function App() {
       // Analyze user input for field detection
       analyzeContent(userMessage)
     } catch (err) {
+      console.error('Chat error:', err)
       setMessages(prev => [...prev, {
         role: 'ai',
-        content: 'Sorry, I encountered an error. Make sure Ollama is running with the qwen or gemma model.'
+        content: `Sorry, I encountered an error: ${err.message}. Please try again.`
       }])
     }
 
@@ -269,8 +285,13 @@ ${conversationSummary || 'No conversation yet.'}
             value={model}
             onChange={(e) => setModel(e.target.value)}
           >
-            <option value="qwen">Qwen</option>
-            <option value="gemma">Gemma</option>
+            {models.length > 0 ? (
+              models.map((m) => (
+                <option key={m.name} value={m.name}>{m.name}</option>
+              ))
+            ) : (
+              <option value="">Loading models...</option>
+            )}
           </select>
           <button className="clear-button" onClick={handleClear} title="Clear conversation">
             Clear

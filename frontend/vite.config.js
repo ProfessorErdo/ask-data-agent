@@ -5,9 +5,10 @@ export default defineConfig({
   plugins: [react()],
   server: {
     proxy: {
-      '/chat': 'http://localhost:8000',
-      '/brd-template': 'http://localhost:8000',
-      '/export-brd': 'http://localhost:8000'
+      '/chat': 'http://localhost:8080',
+      '/brd-template': 'http://localhost:8080',
+      '/export-brd': 'http://localhost:8080',
+      '/models': 'http://localhost:8080'
     }
   }
 })
