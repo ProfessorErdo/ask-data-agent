@@ -1,0 +1,157 @@
+#!/bin/bash
+
+# =============================================================================
+# Ask Data Agent - One-click Startup Script
+# =============================================================================
+# 
+# Usage:
+#   1. Place this script in the project root directory (ask-data/)
+#   2. Add execute permission: chmod +x ask-data-agent
+#   3. Run the script: ./ask-data-agent
+#
+# Features:
+#   - Auto-detect and handle port 8080 conflicts
+#   - Start backend service (FastAPI on port 8080)
+#   - Auto-open default browser when service is ready
+# =============================================================================
+
+set -e
+
+# Color definitions
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+# Configuration
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BACKEND_DIR="$SCRIPT_DIR/backend"
+PORT=8080
+MAX_WAIT=30
+
+echo -e "${GREEN}========================================${NC}"
+echo -e "${GREEN}  Ask Data Agent - Startup Script${NC}"
+echo -e "${GREEN}========================================${NC}"
+echo ""
+
+# -----------------------------------------------------------------------------
+# Step 1: Detect and handle port conflicts
+# -----------------------------------------------------------------------------
+echo -e "${YELLOW}[1/4] Checking port conflicts...${NC}"
+
+check_port() {
+    lsof -i :$PORT > /dev/null 2>&1
+    return $?
+}
+
+kill_port() {
+    echo -e "${YELLOW}  Port $PORT is in use, killing existing process...${NC}"
+    lsof -ti :$PORT | xargs kill -9 2>/dev/null || true
+    sleep 1
+}
+
+if check_port; then
+    kill_port
+fi
+
+# Check again
+if check_port; then
+    echo -e "${RED}Error: Cannot release port $PORT${NC}"
+    exit 1
+fi
+
+echo -e "${GREEN}  ✓ Port $PORT is available${NC}"
+
+# -----------------------------------------------------------------------------
+# Step 2: Start backend service
+# -----------------------------------------------------------------------------
+echo -e "${YELLOW}[2/4] Starting backend service...${NC}"
+
+cd "$BACKEND_DIR"
+
+# Check Python
+if ! command -v python &> /dev/null; then
+    echo -e "${RED}Error: Python not found${NC}"
+    exit 1
+fi
+
+# Start backend in background
+nohup python main.py > /tmp/ask-data-backend.log 2>&1 &
+BACKEND_PID=$!
+
+echo -e "${GREEN}  ✓ Backend started (PID: $BACKEND_PID)${NC}"
+
+# -----------------------------------------------------------------------------
+# Step 3: Wait for service to be ready
+# -----------------------------------------------------------------------------
+echo -e "${YELLOW}[3/4] Waiting for service to be ready...${NC}"
+
+wait_for_service() {
+    local count=0
+    while [ $count -lt $MAX_WAIT ]; do
+        if curl -s http://localhost:$PORT/ > /dev/null 2>&1; then
+            return 0
+        fi
+        sleep 1
+        ((count++))
+        echo -n "."
+    done
+    return 1
+}
+
+if wait_for_service; then
+    echo -e "${GREEN}  ✓ Service is ready${NC}"
+else
+    echo -e "${RED}Error: Service startup timeout${NC}"
+    echo "Check log: /tmp/ask-data-backend.log"
+    exit 1
+fi
+
+# -----------------------------------------------------------------------------
+# Step 4: Open browser
+# -----------------------------------------------------------------------------
+echo -e "${YELLOW}[4/4] Opening browser...${NC}"
+
+open_browser() {
+    local url="http://localhost:$PORT"
+    
+    if command -v open &> /dev/null; then
+        # macOS
+        open "$url"
+    elif command -v xdg-open &> /dev/null; then
+        # Linux
+        xdg-open "$url"
+    elif command -v start &> /dev/null; then
+        # Windows
+        start "$url"
+    else
+        echo -e "${YELLOW}  ⚠ Cannot auto-open browser, please visit: $url${NC}"
+        return 1
+    fi
+    
+    return 0
+}
+
+if open_browser; then
+    echo -e "${GREEN}  ✓ Browser opened${NC}"
+fi
+
+# -----------------------------------------------------------------------------
+# Done
+# -----------------------------------------------------------------------------
+echo ""
+echo -e "${GREEN}========================================${NC}"
+echo -e "${GREEN}  🎉 Startup Complete!${NC}"
+echo -e "${GREEN}========================================${NC}"
+echo ""
+echo -e "Service URL: ${GREEN}http://localhost:$PORT${NC}"
+echo -e "Backend log: /tmp/ask-data-backend.log"
+echo ""
+echo -e "Press ${YELLOW}Ctrl+C${NC} to stop services"
+echo ""
+
+# Cleanup on interrupt
+trap "echo ''; echo -e '${YELLOW}Stopping services...${NC}'; kill $BACKEND_PID 2>/dev/null || true; exit 0" INT TERM
+
+# Keep script running
+wait $BACKEND_PID
