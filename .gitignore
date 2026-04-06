@@ -20,3 +20,5 @@ data
 .claude
 
 .DS_Store
+
+doc/deployment-guide.md
