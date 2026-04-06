@@ -59,19 +59,33 @@ check_dependencies() {
 }
 
 check_env_file() {
+    # Create .env if not exists
     if [ ! -f "$ENV_FILE" ]; then
-        log "${YELLOW}Creating .env file from template...${NC}"
+        log "${YELLOW}Creating .env file...${NC}"
         cat > "$ENV_FILE" << EOF
 OLLAMA_API_KEY=
 OLLAMA_BASE_URL=https://ollama.com/api
 SERVER_PORT=$DEFAULT_PORT
 EOF
-        log "${YELLOW}Please edit $ENV_FILE and add your OLLAMA_API_KEY${NC}"
+        log "${YELLOW}Created $ENV_FILE. Please add your OLLAMA_API_KEY.${NC}"
         exit 1
     fi
 
+    # Ensure BASE_URL exists (add default if missing)
+    if ! grep -q "OLLAMA_BASE_URL" "$ENV_FILE"; then
+        echo "OLLAMA_BASE_URL=https://ollama.com/api" >> "$ENV_FILE"
+        log "${GREEN}Added default OLLAMA_BASE_URL to .env${NC}"
+    fi
+
+    # Ensure SERVER_PORT exists (add default if missing)
+    if ! grep -q "SERVER_PORT" "$ENV_FILE"; then
+        echo "SERVER_PORT=$DEFAULT_PORT" >> "$ENV_FILE"
+        log "${GREEN}Added default SERVER_PORT to .env${NC}"
+    fi
+
     # Check if API key is set
-    if grep -q "OLLAMA_API_KEY=$" "$ENV_FILE" || grep -q "OLLAMA_API_KEY=\"\"" "$ENV_FILE"; then
+    API_KEY=$(grep "OLLAMA_API_KEY" "$ENV_FILE" | cut -d'=' -f2 | tr -d '"' | tr -d ' ')
+    if [ -z "$API_KEY" ]; then
         log "${RED}OLLAMA_API_KEY is not set in .env file. Please configure it first.${NC}"
         exit 1
     fi
