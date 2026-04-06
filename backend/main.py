@@ -82,7 +82,7 @@ async def get_models():
     if not OLLAMA_API_KEY:
         raise HTTPException(status_code=401, detail="Ollama API key not configured")
 
-    url = f"{OLLAMA_BASE_URL}/api/tags"
+    url = f"{OLLAMA_BASE_URL}/tags"
     headers = {"Authorization": f"Bearer {OLLAMA_API_KEY}"}
 
     try:
@@ -99,7 +99,7 @@ async def get_models():
 @app.post("/chat")
 async def chat(chat_message: ChatMessage):
     """Proxy to send chat messages to Ollama Cloud"""
-    url = f"{OLLAMA_BASE_URL}/api/chat"
+    url = f"{OLLAMA_BASE_URL}/chat"
     headers = {
         "Content-Type": "application/json",
         "Authorization": f"Bearer {OLLAMA_API_KEY}"
