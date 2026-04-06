@@ -11,3 +11,10 @@ wheels/
 
 # Environment variables
 .env
+
+.qwen
+
+/doc/api-key.md
+/doc/output/
+data
+.claude
