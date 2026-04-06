@@ -146,11 +146,14 @@ install_frontend_deps() {
 
     cd "$FRONTEND_DIR"
 
-    if [ ! -d "node_modules" ]; then
-        npm install --silent
-        log "${GREEN}Frontend dependencies installed${NC}"
-    else
+    # Check if vite is properly installed
+    if [ -d "node_modules" ] && [ -f "node_modules/vite/dist/node/cli.js" ]; then
         log "${GREEN}Frontend dependencies already installed${NC}"
+    else
+        log "${YELLOW}Installing fresh frontend dependencies...${NC}"
+        rm -rf "node_modules" 2>/dev/null || true
+        npm install
+        log "${GREEN}Frontend dependencies installed${NC}"
     fi
 }
 
@@ -158,13 +161,27 @@ build_frontend() {
     log "${YELLOW}Building frontend...${NC}"
 
     cd "$FRONTEND_DIR"
-    npm run build
 
-    if [ -d "$FRONTEND_DIR/dist" ]; then
-        log "${GREEN}Frontend built successfully${NC}"
+    # Try to build, reinstall if fails
+    if npm run build 2>&1; then
+        if [ -d "$FRONTEND_DIR/dist" ]; then
+            log "${GREEN}Frontend built successfully${NC}"
+        else
+            log "${RED}Frontend build failed${NC}"
+            exit 1
+        fi
     else
-        log "${RED}Frontend build failed${NC}"
-        exit 1
+        log "${YELLOW}Build failed, reinstalling dependencies...${NC}"
+        rm -rf "$FRONTEND_DIR/node_modules"
+        npm install
+        npm run build
+
+        if [ -d "$FRONTEND_DIR/dist" ]; then
+            log "${GREEN}Frontend built successfully after reinstall${NC}"
+        else
+            log "${RED}Frontend build failed${NC}"
+            exit 1
+        fi
     fi
 
     cd "$PROJECT_DIR"
