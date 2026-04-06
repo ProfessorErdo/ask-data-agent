@@ -22,9 +22,33 @@ PID_FILE="$PROJECT_DIR/.server.pid"
 # Default port
 DEFAULT_PORT=8080
 
+# Use uv for Python (auto-detected, falls back to pip)
+USE_UV=false
+
 log() {
     echo -e "$1"
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" >> "$LOG_FILE"
+}
+
+check_python_deps() {
+    log "${YELLOW}Checking Python dependencies...${NC}"
+
+    # Check uv (preferred)
+    if command -v uv &> /dev/null; then
+        log "${GREEN}uv: $(uv --version)${NC}"
+        USE_UV=true
+        return
+    fi
+
+    # Fallback to pip
+    log "${YELLOW}uv not found, falling back to pip3...${NC}"
+    USE_UV=false
+
+    if ! command -v pip3 &> /dev/null; then
+        log "${RED}pip3 not found. Please install pip3 or uv.${NC}"
+        exit 1
+    fi
+    log "${GREEN}pip3 available${NC}"
 }
 
 check_dependencies() {
@@ -37,11 +61,7 @@ check_dependencies() {
     fi
     log "${GREEN}Python3: $(python3 --version)${NC}"
 
-    # Check pip
-    if ! command -v pip3 &> /dev/null; then
-        log "${RED}pip3 not found. Please install pip3.${NC}"
-        exit 1
-    fi
+    check_python_deps
 
     # Check Node.js
     if ! command -v node &> /dev/null; then
@@ -95,12 +115,29 @@ EOF
 install_backend_deps() {
     log "${YELLOW}Installing backend dependencies...${NC}"
 
-    if [ -f "$BACKEND_DIR/requirements.txt" ]; then
-        pip3 install -r "$BACKEND_DIR/requirements.txt" --quiet
-        log "${GREEN}Backend dependencies installed${NC}"
+    cd "$PROJECT_DIR"
+
+    if [ "$USE_UV" = true ]; then
+        # Use uv with pyproject.toml and uv.lock
+        if [ -f "$PROJECT_DIR/pyproject.toml" ]; then
+            uv sync --quiet
+            log "${GREEN}Backend dependencies installed (uv)${NC}"
+        elif [ -f "$BACKEND_DIR/requirements.txt" ]; then
+            uv pip install -r "$BACKEND_DIR/requirements.txt" --quiet
+            log "${GREEN}Backend dependencies installed (uv pip)${NC}"
+        else
+            log "${RED}No pyproject.toml or requirements.txt found${NC}"
+            exit 1
+        fi
     else
-        log "${RED}requirements.txt not found${NC}"
-        exit 1
+        # Fallback to pip
+        if [ -f "$BACKEND_DIR/requirements.txt" ]; then
+            pip3 install -r "$BACKEND_DIR/requirements.txt" --quiet
+            log "${GREEN}Backend dependencies installed (pip)${NC}"
+        else
+            log "${RED}requirements.txt not found${NC}"
+            exit 1
+        fi
     fi
 }
 
@@ -148,7 +185,14 @@ start_server() {
     PORT=$(grep SERVER_PORT "$ENV_FILE" | cut -d'=' -f2 | tr -d '"' || echo "$DEFAULT_PORT")
 
     cd "$PROJECT_DIR"
-    nohup python3 "$BACKEND_DIR/main.py" > "$LOG_FILE" 2>&1 &
+
+    # Use uv run if uv is available, otherwise use python3 directly
+    if [ "$USE_UV" = true ]; then
+        nohup uv run python "$BACKEND_DIR/main.py" > "$LOG_FILE" 2>&1 &
+    else
+        nohup python3 "$BACKEND_DIR/main.py" > "$LOG_FILE" 2>&1 &
+    fi
+
     PID=$!
     echo $PID > "$PID_FILE"
 
