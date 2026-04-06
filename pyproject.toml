@@ -1,4 +1,4 @@
-[tool.uv.index]
+[[tool.uv.index]]
 url = "https://mirrors.aliyun.com/pypi/simple/"
 default = true
 [project]
