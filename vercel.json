@@ -1,5 +1,15 @@
 {
-  "buildCommand": "cd frontend && npm run build",
-  "outputDirectory": "frontend/dist",
-  "framework": "vite"
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": false,
+  "experimentalServices": {
+    "frontend": {
+      "framework": "vite",
+      "routePrefix": "/"
+    },
+    "backend": {
+      "entrypoint": "backend/main.py",
+      "runtime": "@vercel/python@3",
+      "routePrefix": "/api"
+    }
+  }
 }
