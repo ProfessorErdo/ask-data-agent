@@ -18,3 +18,5 @@ wheels/
 /doc/output/
 data
 .claude
+
+.DS_Store
